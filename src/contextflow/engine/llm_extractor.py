@@ -14,10 +14,13 @@ class LLMContextExtractor:
 
     def extract(self, context: str) -> TaskState:
         prompt = (
-            "Extract the task state from this conversation as JSON. "
-            "Use the fields objective, constraints, decisions, completed_work, "
-            "current_state, failed_attempts, artifacts, pending_tasks, "
-            "next_action, and metadata.\n\n"
+            "Extract the task state as one JSON object matching this schema: "
+            "objective and current_state and next_action are strings; "
+            "constraints, completed_work, artifacts, and pending_tasks are "
+            "arrays of strings; decisions is an array of objects with string "
+            "fields decision and reason; failed_attempts is an array of objects "
+            "with string fields approach, result, and reason; metadata is an "
+            "object. Return JSON only, without Markdown fences.\n\n"
             f"Conversation:\n{context}"
         )
 

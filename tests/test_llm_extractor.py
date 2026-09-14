@@ -41,6 +41,22 @@ def test_fenced_json_response_becomes_task_state() -> None:
     assert state.objective == "Build a weather app"
 
 
+def test_prompt_describes_task_state_field_structures() -> None:
+    provider = FakeLLMProvider('{"objective": "Build a weather app"}')
+    extractor = LLMContextExtractor(provider)
+
+    extractor.extract("The user wants a weather app.")
+
+    prompt = provider.prompts[0]
+    assert "decisions is an array of objects with string fields decision and reason" in prompt
+    assert (
+        "failed_attempts is an array of objects with string fields approach, result, and reason"
+        in prompt
+    )
+    assert "constraints, completed_work, artifacts, and pending_tasks are arrays of strings" in prompt
+    assert "metadata is an object" in prompt
+
+
 def test_invalid_json_is_handled_cleanly() -> None:
     extractor = LLMContextExtractor(FakeLLMProvider("not json"))
 
