@@ -1,11 +1,14 @@
 import os
 from typing import Any
 
+from dotenv import load_dotenv
+
 
 class GeminiProvider:
     """LLMProvider implementation backed by the Gemini Interactions API."""
 
     def __init__(self, model: str = "gemini-3.6-flash", client: Any | None = None) -> None:
+        load_dotenv()
         self._model = model
         if client is not None:
             self._client = client

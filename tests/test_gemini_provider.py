@@ -20,7 +20,8 @@ class FakeClient:
         self.interactions = interactions
 
 
-def test_gemini_provider_returns_generated_text() -> None:
+def test_gemini_provider_returns_generated_text(monkeypatch) -> None:
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     interactions = FakeInteractions()
     provider = GeminiProvider(model="test-model", client=FakeClient(interactions))
 
@@ -32,7 +33,9 @@ def test_gemini_provider_returns_generated_text() -> None:
     ]
 
 
-def test_gemini_provider_propagates_client_errors() -> None:
+def test_gemini_provider_propagates_client_errors(monkeypatch) -> None:
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+
     class FailingInteractions:
         def create(self, **kwargs: str) -> object:
             raise RuntimeError("client failure")
