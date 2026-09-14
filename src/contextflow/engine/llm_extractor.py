@@ -21,7 +21,10 @@ class LLMContextExtractor:
             f"Conversation:\n{context}"
         )
 
-        response = self._provider.generate(prompt)
+        response = self._provider.generate(prompt).strip()
+        if response.lower().startswith("```json") and response.endswith("```"):
+            response = response[7:-3].strip()
+
         try:
             task_data = json.loads(response)
         except JSONDecodeError as error:

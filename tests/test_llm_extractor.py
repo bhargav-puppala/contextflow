@@ -30,6 +30,17 @@ def test_valid_json_response_becomes_task_state_and_includes_conversation() -> N
     assert "The user wants a weather app." in provider.prompts[0]
 
 
+def test_fenced_json_response_becomes_task_state() -> None:
+    provider = FakeLLMProvider(
+        '```json\n{"objective": "Build a weather app"}\n```'
+    )
+    extractor = LLMContextExtractor(provider)
+
+    state = extractor.extract("The user wants a weather app.")
+
+    assert state.objective == "Build a weather app"
+
+
 def test_invalid_json_is_handled_cleanly() -> None:
     extractor = LLMContextExtractor(FakeLLMProvider("not json"))
 
