@@ -3,9 +3,9 @@ from typing import Any
 
 
 class GeminiProvider:
-    """LLMProvider implementation backed by the Gemini API."""
+    """LLMProvider implementation backed by the Gemini Interactions API."""
 
-    def __init__(self, model: str = "gemini-2.5-flash", client: Any | None = None) -> None:
+    def __init__(self, model: str = "gemini-3.6-flash", client: Any | None = None) -> None:
         self._model = model
         if client is not None:
             self._client = client
@@ -16,8 +16,8 @@ class GeminiProvider:
         self._client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
 
     def generate(self, prompt: str) -> str:
-        response = self._client.models.generate_content(
+        response = self._client.interactions.create(
             model=self._model,
-            contents=prompt,
+            input=prompt,
         )
-        return response.text
+        return response.output_text
