@@ -9,6 +9,10 @@ def test_count_tokens_counts_simple_whitespace_separated_text() -> None:
     assert count_tokens("Build a weather application") == 4
 
 
+def test_count_tokens_counts_subword_content() -> None:
+    assert count_tokens("unaffordable") > 1
+
+
 def test_count_tokens_is_deterministic() -> None:
     text = "A repeated measurement should remain stable."
 

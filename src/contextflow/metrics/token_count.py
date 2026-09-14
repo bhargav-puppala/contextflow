@@ -1,7 +1,13 @@
-def count_tokens(text: str) -> int:
-    """Return a deterministic whitespace-based token approximation.
+import tiktoken
 
-    This development/testing approximation is provider- and model-agnostic.
-    It is not a final experimental tokenizer and must not be treated as one.
+
+_ENCODING = tiktoken.get_encoding("cl100k_base")
+
+
+def count_tokens(text: str) -> int:
+    """Count tokens with an offline deterministic subword tokenizer.
+
+    ``cl100k_base`` is a real LLM tokenizer suitable for local experiments,
+    but it is not Gemini's exact server-side tokenizer.
     """
-    return len(text.split())
+    return len(_ENCODING.encode(text))
