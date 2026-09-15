@@ -359,6 +359,92 @@ src/
 
 This represents the **target architecture**. Components will be implemented incrementally rather than all at once.
 
+## Current Prototype
+
+The repository currently includes:
+
+* Validated `TaskState`, `Decision`, and `FailedAttempt` models
+* Deterministic mock and provider-backed extraction
+* Deterministic prioritization and compact JSON serialization
+* Versioned local JSON task storage
+* Machine-readable handoff packages and Agent B continuation prompts
+* A small Python API and CLI
+* Offline token measurement with `tiktoken` `cl100k_base`
+* Experiment 001 benchmark loading, handoff generation, and token metrics
+
+The benchmark runner is evaluation infrastructure, not evidence that the research hypothesis has been proven.
+
+## Installation
+
+Use Python 3.12 or newer:
+
+```text
+python -m venv .venv
+.venv\Scripts\activate
+pip install -e .
+```
+
+## Basic Usage
+
+The existing default CLI path uses the deterministic mock extractor and needs no credentials:
+
+```text
+python -m contextflow "Build a weather application"
+```
+
+The equivalent explicit command is:
+
+```text
+python -m contextflow extract --provider mock "Build a weather application"
+```
+
+Save and inspect a local task:
+
+```text
+python -m contextflow save task-001 "Build a weather application" --store-dir data/tasks
+python -m contextflow inspect task-001 --store-dir data/tasks
+python -m contextflow handoff task-001 --store-dir data/tasks
+python -m contextflow continuation task-001 --store-dir data/tasks
+```
+
+The Python API exposes the same core workflow:
+
+```python
+from contextflow.api import ContextFlow
+
+flow = ContextFlow()
+record = flow.create_task("task-001", "Build a weather application")
+handoff = flow.handoff("task-001")
+```
+
+## Providers
+
+Gemini extraction requires `GEMINI_API_KEY`, loaded from the environment or a local ignored `.env` file:
+
+```text
+python -m contextflow extract --provider gemini "Build a weather application"
+```
+
+OpenAI and Gemini providers are tested with injected fake clients. The test suite never requires API credentials or makes network calls.
+
+## Benchmark
+
+Run the deterministic Experiment 001 evaluation prototype:
+
+```text
+python -m contextflow experiment --output results/experiment_001.json
+```
+
+This compares the full conversation with the structured ContextFlow handoff, generates an Agent B continuation prompt, and records token counts and reduction percentage. The default run uses the benchmark's deterministic gold state fixture and makes no API calls.
+
+To add an LLM-summary baseline, explicitly provide Gemini credentials:
+
+```text
+python -m contextflow experiment --provider gemini --output results/experiment_001.json
+```
+
+The local `cl100k_base` tokenizer is deterministic and useful for offline comparisons, but it is not Gemini's exact server-side tokenizer. No continuation-agent execution or task-success score is implemented yet.
+
 ---
 
 ## Development Philosophy

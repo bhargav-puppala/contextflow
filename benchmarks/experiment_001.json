@@ -1,0 +1,382 @@
+{
+  "task_id": "contextflow-experiment-001",
+  "task_description": "Continue debugging and completing authentication for a FastAPI student-records API after an agent handoff.",
+  "agent_a_conversation": [
+    {
+      "role": "user",
+      "content": "Build and stabilize the student-records API for the registrar office. Keep the existing database schema and all CRUD behavior intact — we cannot afford a migration rewrite this sprint. The API must run against PostgreSQL in staging and production."
+    },
+    {
+      "role": "agent",
+      "content": "Understood. I chose FastAPI with PostgreSQL because the project needs Python integration, async I/O for concurrent reads during registration week, and relational data with foreign keys between students, enrollments, and courses. I will not touch the existing Alembic revision that created the students table."
+    },
+    {
+      "role": "user",
+      "content": "Good. Authentication is new scope for this milestone — nothing in the repo handles login yet. Do not break the existing student CRUD endpoints while you add it."
+    },
+    {
+      "role": "agent",
+      "content": "Plan: add JWT-based auth with a /auth/login route, protect write endpoints first, and leave read endpoints open until we confirm requirements. I will use python-jose for token signing and passlib with bcrypt for password hashing — bcrypt is widely supported in our deployment images and fast enough for login traffic."
+    },
+    {
+      "role": "user",
+      "content": "Sounds reasonable. We tried argon2 in another service but ops asked us to stay on bcrypt for consistency across internal APIs."
+    },
+    {
+      "role": "agent",
+      "content": "Noted — bcrypt it is. I implemented the SQLAlchemy models for Student and a stub User model aligned with the existing schema. The student CRUD routes live in app/routers/students.py and match the OpenAPI spec the frontend team already integrated against."
+    },
+    {
+      "role": "user",
+      "content": "Did you get local dev running?"
+    },
+    {
+      "role": "agent",
+      "content": "Yes. docker-compose brings up PostgreSQL 15 and the API on port 8000. I added a seed script that inserts two sample students. GET /students and GET /students/{id} both return 200 with the expected JSON shape."
+    },
+    {
+      "role": "user",
+      "content": "What about SQLite for local-only dev? Some teammates prefer not running Docker."
+    },
+    {
+      "role": "agent",
+      "content": "SQLite was tried initially but abandoned because PostgreSQL is required — we rely on UUID columns, timestamptz defaults, and a partial unique index that SQLite does not emulate cleanly. Staging parity matters more than zero-dependency local setup, so docker-compose stays the supported path."
+    },
+    {
+      "role": "user",
+      "content": "Agreed. Stick with PostgreSQL. Also please do not rename any routes; the frontend has hard-coded paths."
+    },
+    {
+      "role": "agent",
+      "content": "Route names are frozen. I implemented POST /students, PUT /students/{id}, and DELETE /students/{id} using Pydantic v2 request models. Validation errors correctly return 422. Unit tests cover the happy paths for all three verbs."
+    },
+    {
+      "role": "user",
+      "content": "Nice. I also like the clean API naming — very readable. Anyway, where are we on auth?"
+    },
+    {
+      "role": "agent",
+      "content": "Partial progress. app/auth/jwt.py can mint and decode tokens. app/auth/deps.py defines get_current_user. I have not wired login yet. First I attempted to wrap the entire FastAPI app with a global authentication middleware before adding /auth/login — that failed because every request, including health checks and the login route itself, started returning 401. I removed that middleware; do not reintroduce global middleware without exempt paths."
+    },
+    {
+      "role": "user",
+      "content": "Good catch. Use dependency injection on specific routes instead."
+    },
+    {
+      "role": "agent",
+      "content": "Exactly what I switched to. Next step is Depends(get_current_user) on mutating student routes only. I also need a users table seed with a bcrypt hash for integration tests — the migration already exists from a prior sprint but no row is inserted yet."
+    },
+    {
+      "role": "user",
+      "content": "Before you protect routes, run POST /students without a token and tell me what happens. That is the regression I care about most."
+    },
+    {
+      "role": "agent",
+      "content": "Running curl -X POST http://localhost:8000/students with a valid JSON body and no Authorization header returns HTTP 500, not 401 or 422. Response body: {\"detail\":\"Internal Server Error\"}. Server log shows: AttributeError: 'NoneType' object has no attribute 'id' in app/routers/students.py line 47 inside create_student."
+    },
+    {
+      "role": "user",
+      "content": "That is wrong — unauthenticated writes should fail closed with 401 once auth is wired, but they definitely should not 500 today while auth is still incomplete."
+    },
+    {
+      "role": "agent",
+      "content": "I agree. Line 47 currently does current_user.id for audit logging even when get_current_user is optional and returns None for missing tokens. That is likely the immediate crash, but I have not confirmed whether authentication middleware or dependency wiring is also involved."
+    },
+    {
+      "role": "user",
+      "content": "Investigate authentication as a possible cause before changing business logic. Do not change the database schema to work around this."
+    },
+    {
+      "role": "agent",
+      "content": "Constraint acknowledged: no schema changes, preserve CRUD behavior, PostgreSQL only. I re-read students.py — create_student declares user: User | None = Depends(get_current_user). get_current_user raises HTTPException 401 when the header is missing, but optional_auth=True path returns None. The route signature may still be wrong. I have not finished tracing dependency order."
+    },
+    {
+      "role": "user",
+      "content": "Keep the investigation focused. We can refactor audit logging after the 500 is understood."
+    },
+    {
+      "role": "agent",
+      "content": "I duplicated the failing curl five times — same 500 each time. GET endpoints still work. DELETE without auth also 500s with a similar NoneType traceback, so the bug is not isolated to POST."
+    },
+    {
+      "role": "user",
+      "content": "What does pytest show right now?"
+    },
+    {
+      "role": "agent",
+      "content": "pytest tests/unit/test_students.py — 14 passed. Those tests mock get_current_user with a fake User, so they never hit the None path. There is no integration test yet for unauthenticated POST /students, which is why this regression slipped through. I started sketching tests/integration/test_auth.py but did not commit it because login is not wired."
+    },
+    {
+      "role": "user",
+      "content": "Does the OpenAPI page still load?"
+    },
+    {
+      "role": "agent",
+      "content": "Yes — /docs renders and lists all student routes. The authorize button appears because OAuth2PasswordBearer is registered, but there is no working token endpoint to feed it yet. This is cosmetic only; the 500 reproduces outside Swagger with plain curl."
+    },
+    {
+      "role": "agent",
+      "content": "I added temporary logging in get_current_user: for requests without Authorization, it logs current_user=None before create_student runs. That confirms the dependency returns None rather than raising 401 on the code path we hit. I have not changed production logic yet — only debug prints locally."
+    },
+    {
+      "role": "user",
+      "content": "Good. Again, no schema changes to patch this. If you need a migration for auth, that is a separate approved ticket — not for this bugfix."
+    },
+    {
+      "role": "agent",
+      "content": "No migrations planned. The users table already exists from revision a4c1f2. I only need a seed row for tests, not a new column or index. PostgreSQL stays the sole supported database — I will not revisit SQLite or add a second engine configuration."
+    },
+    {
+      "role": "user",
+      "content": "Our standup is at 10:30 tomorrow — please have a clear status by then. Side note: cafeteria added oat milk lattes, finally."
+    },
+    {
+      "role": "agent",
+      "content": "For standup: CRUD is done, auth is half-wired, blocker is unauthenticated POST /students returning HTTP 500 instead of a controlled 401 or successful create. I will document the NoneType traceback path for whoever continues. Oat milk noted."
+    },
+    {
+      "role": "user",
+      "content": "Walk me through the repo layout so the next person is not lost."
+    },
+    {
+      "role": "agent",
+      "content": "app/main.py mounts routers and configures OAuth2 scheme. app/routers/students.py holds create_student where line 47 writes audit metadata. app/auth/deps.py has get_current_user with an optional_auth flag. app/auth/jwt.py handles encode/decode. tests/unit mocks auth; docker-compose.yml starts db plus api. Alembic versions live under alembic/versions/. No separate service layer — routes talk to SQLAlchemy sessions directly per existing convention."
+    },
+    {
+      "role": "user",
+      "content": "Could the OAuth2PasswordBearer auto_error setting be involved?"
+    },
+    {
+      "role": "agent",
+      "content": "Possibly. oauth2_scheme = OAuth2PasswordBearer(tokenUrl='/auth/login', auto_error=False) is configured in deps.py, but create_student still assumes a User when logging created_by. I have not verified whether auto_error=False combined with optional_auth=True is the intended interim behavior or a misconfiguration. That investigation is still open."
+    },
+    {
+      "role": "user",
+      "content": "Staging deploy is blocked until QA can POST without a token and get a predictable status code."
+    },
+    {
+      "role": "agent",
+      "content": "Understood — staging stays blocked on the POST /students 500. GET traffic could theoretically ship, but ops wants the whole API held until mutating routes behave. I will not cut a hotfix branch that skips auth testing."
+    },
+    {
+      "role": "user",
+      "content": "Remind me what is done versus open?"
+    },
+    {
+      "role": "agent",
+      "content": "Completed: database models, student CRUD endpoints, docker-compose dev environment, Alembic alignment, Pydantic request/response models, unit tests for CRUD happy paths, JWT helper module, auth dependency skeleton. Not done: /auth/login, wiring Depends correctly on protected routes, integration tests for auth, fixing the unauthenticated 500 on POST /students (and likely PUT/DELETE)."
+    },
+    {
+      "role": "user",
+      "content": "Do not redo the CRUD work — it passed review. Focus on auth and the 500."
+    },
+    {
+      "role": "agent",
+      "content": "Understood. I will not rewrite models or rename routes. Remaining work: diagnose the 500 on unauthenticated mutating requests, implement JWT login, finish route-level auth dependencies, seed a test user, and expand the test suite."
+    },
+    {
+      "role": "user",
+      "content": "What decisions are locked in?"
+    },
+    {
+      "role": "agent",
+      "content": "Locked decisions: FastAPI + PostgreSQL; JWT auth; bcrypt via passlib; route-level Depends instead of global middleware; keep existing schema and OpenAPI paths; docker-compose for local dev."
+    },
+    {
+      "role": "user",
+      "content": "Any dead ends I should know about?"
+    },
+    {
+      "role": "agent",
+      "content": "Two failed approaches: SQLite local dev — abandoned because PostgreSQL-specific types and indexes are required; global auth middleware — removed because it blocked /health and /auth/login with 401 before those routes existed."
+    },
+    {
+      "role": "user",
+      "content": "Good. What is the very next thing you would do if you kept going?"
+    },
+    {
+      "role": "agent",
+      "content": "Step through get_current_user and create_student with logging, reproduce the NoneType in a minimal test, and verify whether missing Authorization should return 401 or allow anonymous create per interim policy. Current state: POST /students returns HTTP 500 for an unauthenticated request; server traceback points to audit logging using current_user.id when current_user is None."
+    },
+    {
+      "role": "user",
+      "content": "Again — do not change the schema. Do not break existing student CRUD endpoints that already work for authenticated flows in unit tests."
+    },
+    {
+      "role": "agent",
+      "content": "Constraints restated: schema frozen, CRUD behavior preserved, PostgreSQL only, investigate auth wiring before business-logic edits. Pending: login route, middleware-free protection, auth integration tests, fix 500 on unauthenticated POST /students."
+    },
+    {
+      "role": "user",
+      "content": "The 500 on POST /students is the blocker for QA sign-off. Everything else waits behind that."
+    },
+    {
+      "role": "agent",
+      "content": "Agreed — the unauthenticated POST /students HTTP 500 is the active blocker. JWT login and full test coverage follow once mutating routes fail predictably."
+    },
+    {
+      "role": "user",
+      "content": "I also like the clean API naming, and the weather is finally nice today — perfect day for a walk after this deploy."
+    },
+    {
+      "role": "agent",
+      "content": "Noted on the naming feedback. Current state summary for handoff: FastAPI student-records API on PostgreSQL; CRUD and models implemented; JWT auth partially built; global middleware attempt reverted; unauthenticated POST /students (and likely PUT/DELETE) returns 500 due to NoneType in audit logging path; remaining work is investigate auth dependency wiring, implement /auth/login, protect routes, and add tests."
+    },
+    {
+      "role": "user",
+      "content": "Please repeat the constraints one more time — I want them in the handoff notes."
+    },
+    {
+      "role": "agent",
+      "content": "Constraints: do not change the existing database schema; do not break existing student CRUD endpoints or rename routes; use PostgreSQL not SQLite; do not bring back global authentication middleware; investigate authentication dependency wiring before editing business logic in students.py."
+    },
+    {
+      "role": "user",
+      "content": "And the failed approaches?"
+    },
+    {
+      "role": "agent",
+      "content": "Failed approach one: SQLite for local dev — abandoned, PostgreSQL-specific features required. Failed approach two: global auth middleware — reverted, it 401'd /health and login. Do not retry either without explicit approval."
+    },
+    {
+      "role": "user",
+      "content": "My kid's soccer game ran long last night so I skimmed the thread — is the 500 still the main issue?"
+    },
+    {
+      "role": "agent",
+      "content": "Yes — still the main issue. POST /students without Authorization header returns HTTP 500 with AttributeError on current_user.id at line 47. PUT and DELETE show the same pattern. Everything else is secondary until that is understood."
+    },
+    {
+      "role": "user",
+      "content": "Do we need Redis for token blocklisting?"
+    },
+    {
+      "role": "agent",
+      "content": "Out of scope for this milestone. We are doing stateless JWT with short expiry only — no Redis, no refresh tokens, no logout blocklist. If security review demands revocation later, that is a new ticket."
+    },
+    {
+      "role": "user",
+      "content": "One more time — what should the next engineer do first?"
+    },
+    {
+      "role": "agent",
+      "content": "Next action: investigate whether authentication dependency wiring (optional vs required get_current_user) is causing the HTTP 500 on POST /students before making any schema or route renames. Start with a focused debug session on app/routers/students.py line 47 and app/auth/deps.py."
+    },
+    {
+      "role": "system",
+      "content": "HANDOFF: Agent A has reached the exact handoff point. Agent B must continue from the current state below."
+    }
+  ],
+  "exact_handoff_point": "Immediately after Agent A records the unauthenticated POST /students HTTP 500 bug, the auth investigation plan, and the explicit next action — before any authentication debugging begins.",
+  "critical_facts": [
+    "The API manages student records for the registrar office.",
+    "FastAPI is the backend framework.",
+    "PostgreSQL is the required database.",
+    "JWT with bcrypt password hashing is the chosen authentication approach.",
+    "Database models and student CRUD endpoints are already implemented and reviewed.",
+    "SQLite was abandoned and must not be reintroduced.",
+    "Global authentication middleware was tried and removed; use route-level Depends instead.",
+    "Unauthenticated POST /students returns HTTP 500 with a NoneType error in audit logging at students.py line 47.",
+    "PUT and DELETE without auth likely fail similarly.",
+    "The existing database schema and route paths must not change."
+  ],
+  "constraints": [
+    "Do not change the existing database schema.",
+    "Do not break existing student CRUD endpoints or rename routes.",
+    "Use PostgreSQL rather than SQLite.",
+    "Do not reintroduce global authentication middleware.",
+    "Investigate authentication dependency wiring as a possible cause of the HTTP 500 before changing business logic."
+  ],
+  "expected_continuation_requirements": [
+    "Investigate the unauthenticated POST /students HTTP 500 starting with auth dependencies and students.py line 47.",
+    "Implement /auth/login if it is still incomplete.",
+    "Wire route-level authentication with Depends rather than global middleware.",
+    "Seed a test user and add or update integration tests for auth and mutating endpoints.",
+    "Run the test suite and report remaining work."
+  ],
+  "expected_task_state": {
+    "objective": "Continue debugging and completing authentication for a FastAPI student-records API.",
+    "constraints": [
+      "Do not change the existing database schema.",
+      "Do not break existing student CRUD endpoints or rename routes.",
+      "Use PostgreSQL rather than SQLite.",
+      "Do not reintroduce global authentication middleware.",
+      "Investigate authentication dependency wiring as a possible cause of the HTTP 500 before changing business logic."
+    ],
+    "decisions": [
+      {
+        "decision": "Use FastAPI with PostgreSQL.",
+        "reason": "Python integration, async I/O, and relational data with staging parity."
+      },
+      {
+        "decision": "Use JWT authentication with bcrypt password hashing.",
+        "reason": "Matches internal API standards and existing deployment images."
+      },
+      {
+        "decision": "Use route-level Depends for auth instead of global middleware.",
+        "reason": "Global middleware blocked /health and /auth/login with 401."
+      }
+    ],
+    "completed_work": [
+      "Implemented SQLAlchemy models for Student and User aligned with the existing schema.",
+      "Implemented student CRUD endpoints in app/routers/students.py.",
+      "Set up docker-compose with PostgreSQL 15 for local development.",
+      "Added Pydantic v2 request/response models and CRUD happy-path unit tests.",
+      "Implemented JWT helper module in app/auth/jwt.py.",
+      "Created auth dependency skeleton in app/auth/deps.py."
+    ],
+    "current_state": "Unauthenticated POST /students returns HTTP 500 (NoneType at students.py line 47 in audit logging); PUT/DELETE likely fail similarly; GET routes work.",
+    "failed_attempts": [
+      {
+        "approach": "SQLite for local development",
+        "result": "Abandoned",
+        "reason": "PostgreSQL-specific UUID, timestamptz, and partial unique index behavior is required."
+      },
+      {
+        "approach": "Global authentication middleware",
+        "result": "Reverted",
+        "reason": "Blocked /health and /auth/login with 401 before exempt paths existed."
+      }
+    ],
+    "artifacts": [
+      "app/routers/students.py",
+      "app/auth/jwt.py",
+      "app/auth/deps.py",
+      "docker-compose.yml",
+      "Alembic migrations for students and users tables"
+    ],
+    "pending_tasks": [
+      "Investigate and fix the unauthenticated POST /students HTTP 500.",
+      "Implement /auth/login endpoint.",
+      "Wire Depends(get_current_user) on mutating student routes.",
+      "Seed a test user with bcrypt hash for integration tests.",
+      "Add auth and mutating-endpoint integration tests.",
+      "Run the test suite and report remaining work."
+    ],
+    "next_action": "Investigate whether authentication dependency wiring (optional vs required get_current_user) is causing the HTTP 500 on POST /students, starting with app/routers/students.py line 47 and app/auth/deps.py.",
+    "metadata": {
+      "source": "experiment-001-gold-fixture",
+      "framework": "FastAPI",
+      "database": "PostgreSQL",
+      "blocker": "unauthenticated POST /students HTTP 500"
+    }
+  },
+  "scoring_criteria": [
+    {
+      "criterion": "State retention",
+      "description": "The receiving agent identifies the API objective, stack choices, completed CRUD work, both failed approaches, the active 500 bug, and pending auth tasks."
+    },
+    {
+      "criterion": "Constraint adherence",
+      "description": "The receiving agent preserves the database schema, PostgreSQL choice, route names, and existing CRUD behavior."
+    },
+    {
+      "criterion": "Continuation quality",
+      "description": "The receiving agent begins with auth dependency investigation for the POST /students failure before unrelated refactors."
+    },
+    {
+      "criterion": "Irrelevance handling",
+      "description": "The receiving agent does not treat API naming praise, weather, or walk plans as task state."
+    }
+  ]
+}

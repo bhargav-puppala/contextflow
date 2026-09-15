@@ -11,3 +11,10 @@ def count_tokens(text: str) -> int:
     but it is not Gemini's exact server-side tokenizer.
     """
     return len(_ENCODING.encode(text))
+
+
+def token_reduction_percent(original_tokens: int, transferred_tokens: int) -> float:
+    """Return percentage reduction from original to transferred token counts."""
+    if original_tokens <= 0:
+        return 0.0
+    return round((1 - transferred_tokens / original_tokens) * 100, 2)

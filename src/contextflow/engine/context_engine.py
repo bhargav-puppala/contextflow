@@ -12,12 +12,15 @@ class ContextEngine:
         self._extractor = extractor
         self._prioritizer = ContextPrioritizer()
 
-    def process(self, context: ConversationContext) -> str:
+    def extract_state(self, context: ConversationContext) -> TaskState:
         extracted = self._extractor.extract(context)
-        task_state = (
+        return (
             extracted
             if isinstance(extracted, TaskState)
             else TaskStateBuilder.build(extracted)
         )
+
+    def process(self, context: ConversationContext) -> str:
+        task_state = self.extract_state(context)
         transferable = self._prioritizer.prioritize(task_state)
         return serialize_context(transferable)

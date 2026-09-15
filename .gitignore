@@ -16,6 +16,8 @@ build/
 
 .env
 .env.*
+data/
+results/
 
 .vscode/
 .idea/
