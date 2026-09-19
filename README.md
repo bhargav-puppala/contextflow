@@ -229,6 +229,90 @@ However:
 
 The research focus remains the representation, extraction, selection, and evaluation of task context for reliable and token-efficient handoff.
 
+## MCP Integration
+
+ContextFlow exposes task-state operations through the official Python MCP SDK. Agent A can provide conversation and task information; ContextFlow converts it into structured `TaskState`, persists that state, and exposes a compact handoff. Agent B can consume the continuation context without receiving the full conversation. MCP is the interoperability layer; ContextFlow remains the context-management engine.
+
+Run the local stdio server with:
+
+```text
+python -m contextflow.mcp.server --store-dir data/tasks
+```
+
+MCP-compatible clients can inspect and test the server through their MCP Inspector or development command. The default `mock` provider is deterministic and requires no API key; `gemini` and `openai` use the existing provider configuration.
+
+## Use ContextFlow with AI Agents
+
+ContextFlow is a local, agent-agnostic context bridge. Agent A can checkpoint
+work, another MCP-compatible agent can retrieve the checkpoint, and both agents
+use the same ContextFlow server:
+
+```text
+Agent A -> MCP -> ContextFlow TaskState -> MCP -> Agent B
+```
+
+1. Clone the repository and create the virtual environment.
+2. Install the package with `pip install -e .`.
+3. Configure the MCP client with the stdio server below.
+4. Have Agent A call `create_task_state`, then `save_task_state`.
+5. Close or switch Agent A.
+6. Have Agent B call `get_continuation_context` for the same task ID.
+
+Windows PowerShell setup:
+
+```powershell
+python -m venv .venv
+& .\.venv\Scripts\Activate.ps1
+pip install -e .
+```
+
+VS Code/GitHub Copilot workspace configuration (`.vscode/mcp.json`):
+
+```json
+{
+      "servers": {
+            "contextflow": {
+                  "type": "stdio",
+                  "command": "${workspaceFolder}/.venv/Scripts/python.exe",
+                  "args": [
+                        "-m",
+                        "contextflow.mcp.server",
+                        "--store-dir",
+                        "${workspaceFolder}/data/tasks"
+                  ],
+                  "cwd": "${workspaceFolder}"
+            }
+      }
+}
+```
+
+The command is equivalent to:
+
+```text
+python -m contextflow.mcp.server --store-dir data/tasks
+```
+
+For the complete GitHub Copilot/VS Code setup and manual verification steps,
+see [docs/github-copilot.md](docs/github-copilot.md). For another MCP client,
+use the same stdio command and adapt only the client's configuration wrapper.
+
+For real conversation extraction, pass `provider` as `gemini` or `openai` to
+`create_task_state` and configure `GEMINI_API_KEY` or `OPENAI_API_KEY` in the
+server environment. The default `mock` provider is offline and deterministic.
+See [docs/agent-compatibility.md](docs/agent-compatibility.md) for the
+compatibility matrix and client notes. The local protocol demo can be run with:
+
+```powershell
+python examples/mcp_end_to_end.py
+```
+
+The demo uses the official Python MCP client and starts the server itself.
+
+In Experiment 001, ContextFlow reduced the transferable context from 2,606
+tokens to 494 tokens, an 81.04% reduction. This is a deterministic benchmark
+result, not a universal performance claim; real LLM extraction and qualitative
+Agent-B continuation are separate evaluation paths.
+
 ---
 
 ## Current Status
