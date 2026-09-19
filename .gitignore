@@ -17,6 +17,8 @@ build/
 .env
 .env.*
 data/
+!src/contextflow/data/
+!src/contextflow/data/experiment_001.json
 results/
 
 .vscode/
@@ -25,3 +27,5 @@ results/
 .idea/
 
 .DS_Store
+
+test-contextflow/

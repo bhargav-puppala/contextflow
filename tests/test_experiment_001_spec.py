@@ -1,17 +1,10 @@
 import json
-from pathlib import Path
 
-from contextflow.experiments import conversation_text
+from contextflow.experiments import conversation_text, load_benchmark
 from contextflow.metrics import count_tokens
 
-
-BENCHMARK_PATH = (
-    Path(__file__).parents[1] / "benchmarks" / "experiment_001.json"
-)
-
-
 def test_experiment_001_benchmark_spec_is_well_formed() -> None:
-    benchmark = json.loads(BENCHMARK_PATH.read_text(encoding="utf-8"))
+    benchmark = load_benchmark()
 
     required_fields = {
         "task_id",
@@ -33,7 +26,7 @@ def test_experiment_001_benchmark_spec_is_well_formed() -> None:
 
 
 def test_experiment_001_conversation_contains_required_state_and_irrelevance() -> None:
-    benchmark = json.loads(BENCHMARK_PATH.read_text(encoding="utf-8"))
+    benchmark = load_benchmark()
     conversation = " ".join(
         message["content"] for message in benchmark["agent_a_conversation"]
     ).lower()
@@ -50,7 +43,7 @@ def test_experiment_001_conversation_contains_required_state_and_irrelevance() -
 
 
 def test_experiment_001_conversation_is_substantially_longer_than_handoff() -> None:
-    benchmark = json.loads(BENCHMARK_PATH.read_text(encoding="utf-8"))
+    benchmark = load_benchmark()
     conversation_tokens = count_tokens(conversation_text(benchmark))
 
     assert conversation_tokens >= 2000

@@ -1,4 +1,5 @@
 import json
+from importlib import resources
 from pathlib import Path
 from typing import Any
 
@@ -8,11 +9,15 @@ from contextflow.metrics import count_tokens, token_reduction_percent
 from contextflow.models.task_state import TaskState
 
 
-DEFAULT_BENCHMARK = Path(__file__).parents[2] / "benchmarks" / "experiment_001.json"
+DEFAULT_BENCHMARK = resources.files("contextflow").joinpath(
+    "data", "experiment_001.json"
+)
 
 
 def load_benchmark(path: str | Path = DEFAULT_BENCHMARK) -> dict[str, Any]:
-    return json.loads(Path(path).read_text(encoding="utf-8"))
+    resource = Path(path) if isinstance(path, (str, Path)) else path
+    contents = resource.read_text(encoding="utf-8")
+    return json.loads(contents)
 
 
 def conversation_text(benchmark: dict[str, Any]) -> str:

@@ -17,7 +17,7 @@ def create_server(store_dir: str | Path = "data/tasks") -> MCPServer:
     """Create an MCP server bound to a ContextFlow task-store directory."""
     mcp = MCPServer(
         name="contextflow",
-        version="0.1.0",
+        version="0.1.1",
         description="Structured task-state handoff for AI agents.",
     )
 

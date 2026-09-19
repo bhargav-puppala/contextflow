@@ -1,8 +1,7 @@
 import json
-from pathlib import Path
 
 from contextflow.engine.prioritizer import ContextPrioritizer
-from contextflow.experiments import run_benchmark, save_results
+from contextflow.experiments import load_benchmark, run_benchmark, save_results
 from contextflow.metrics import count_tokens, token_reduction_percent
 from contextflow.models.task_state import TaskState
 
@@ -15,6 +14,12 @@ def test_run_benchmark_produces_machine_readable_offline_results() -> None:
     assert results["metrics"]["original_token_count"] > 0
     assert results["metrics"]["transferred_token_count"] > 0
     assert "Continue the task" in results["conditions"]["contextflow_structured_handoff"]["continuation_prompt"]
+
+
+def test_default_benchmark_is_loaded_from_packaged_resource() -> None:
+    benchmark = load_benchmark()
+
+    assert benchmark["task_id"] == "contextflow-experiment-001"
 
 
 def test_token_reduction_and_result_persistence(tmp_path) -> None:
@@ -42,11 +47,7 @@ def test_run_benchmark_can_include_an_injected_summary_baseline() -> None:
 def test_experiment_001_handoff_is_smaller_than_verbose_state() -> None:
     results = run_benchmark()
     benchmark_state = TaskState.model_validate(
-        json.loads(
-            (Path(__file__).parents[1] / "benchmarks" / "experiment_001.json").read_text(
-                encoding="utf-8"
-            )
-        )["expected_task_state"]
+        load_benchmark()["expected_task_state"]
     )
     verbose = ContextPrioritizer().prioritize(benchmark_state)
     verbose["task_id"] = "contextflow-experiment-001"
