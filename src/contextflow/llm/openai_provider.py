@@ -7,6 +7,7 @@ class OpenAIProvider:
 
     def __init__(self, model: str = "gpt-4.1-mini", client: Any | None = None) -> None:
         self._model = model
+        self.last_usage: Any | None = None
         if client is not None:
             self._client = client
             return
@@ -20,4 +21,5 @@ class OpenAIProvider:
             model=self._model,
             input=prompt,
         )
+        self.last_usage = getattr(response, "usage", None)
         return response.output_text

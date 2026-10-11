@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 
 from contextflow.api import ContextFlow
+from contextflow.demo import run_demo
 from contextflow.engine.context_engine import ContextEngine
 from contextflow.engine.llm_extractor import LLMContextExtractor
 from contextflow.engine.mock_extractor import MockContextExtractor
@@ -13,7 +14,7 @@ from contextflow.llm.gemini_provider import GeminiProvider
 from contextflow.storage import JsonTaskStore
 
 
-COMMANDS = {"extract", "save", "inspect", "handoff", "continuation", "experiment"}
+COMMANDS = {"extract", "save", "inspect", "handoff", "continuation", "experiment", "demo"}
 
 
 def _extractor(provider: str):
@@ -54,6 +55,11 @@ def _command_main(argv: list[str]) -> int:
     experiment_parser.add_argument("--benchmark")
     experiment_parser.add_argument("--output")
     experiment_parser.add_argument("--provider", choices=("gemini",))
+    demo_parser = subparsers.add_parser(
+        "demo", help="Run the deterministic offline handoff demonstration"
+    )
+    demo_parser.add_argument("--output", default="data/demo/handoff.json")
+    demo_parser.add_argument("--store-dir", default="data/demo/tasks")
     args = parser.parse_args(argv)
 
     if args.command == "extract":
@@ -76,7 +82,7 @@ def _command_main(argv: list[str]) -> int:
     elif args.command == "continuation":
         flow = ContextFlow(store=JsonTaskStore(args.store_dir))
         print(flow.continuation_prompt(args.task_id))
-    else:
+    elif args.command == "experiment":
         summary_provider = GeminiProvider() if args.provider == "gemini" else None
         results = (
             run_benchmark(args.benchmark, summary_provider=summary_provider)
@@ -86,6 +92,8 @@ def _command_main(argv: list[str]) -> int:
         if args.output:
             save_results(results, args.output)
         print(json.dumps(results, indent=2, sort_keys=True))
+    else:
+        print(json.dumps(run_demo(args.output, args.store_dir), indent=2, sort_keys=True))
     return 0
 
 

@@ -10,6 +10,7 @@ class GeminiProvider:
     def __init__(self, model: str = "gemini-3.6-flash", client: Any | None = None) -> None:
         load_dotenv()
         self._model = model
+        self.last_usage: Any | None = None
         if client is not None:
             self._client = client
             return
@@ -23,4 +24,5 @@ class GeminiProvider:
             model=self._model,
             input=prompt,
         )
+        self.last_usage = getattr(response, "usage", None)
         return response.output_text

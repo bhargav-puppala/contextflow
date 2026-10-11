@@ -233,6 +233,21 @@ The research focus remains the representation, extraction, selection, and evalua
 
 ContextFlow exposes task-state operations through the official Python MCP SDK. Agent A can provide conversation and task information; ContextFlow converts it into structured `TaskState`, persists that state, and exposes a compact handoff. Agent B can consume the continuation context without receiving the full conversation. MCP is the interoperability layer; ContextFlow remains the context-management engine.
 
+## Offline Handoff Demo
+
+Run the deterministic demo with no API key, model, or network access:
+
+```powershell
+python -m contextflow demo
+```
+
+It loads the representative Experiment 001 fixture's expected task state,
+saves a compact handoff to `data/demo/handoff.json`, persists the state through
+the local JSON store, reloads it as a fresh session, and prints a deterministic
+continuation plan. The output labels this as fixture-loaded offline data; it is
+not a live model extraction. Token counts use the repository's
+`cl100k_base`-based estimator.
+
 Run the local stdio server with:
 
 ```text
